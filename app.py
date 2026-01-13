@@ -27,16 +27,34 @@ def get_data(sid):
     return df, div
 
 try:
-    df, div = get_data(stock_id)
-    df['date'] = pd.to_datetime(df['date'])
-    div['date'] = pd.to_datetime(div['ex_dividend_date'])
+   # --- 1. 抓取數據 (優化版) ---
+@st.cache_data(ttl=3600)
+def get_data(sid):
+    dl = DataLoader()
+    # 抓取日線數據
+    df = dl.taiwan_stock_daily(stock_id=sid, start_date='2024-01-01')
+    
+    # 【新增防錯】檢查是否抓到資料
+    if df.empty:
+        return None, None
+        
+    # 抓取除權息資料 (加入 try-except 防止沒資料時崩潰)
+    try:
+        div = dl.taiwan_stock_dividend(stock_id=sid, start_date='2024-01-01')
+    except:
+        div = pd.DataFrame() # 沒資料就給空的
+        
+    return df, div
 
-    # --- 2. 計算指標 ---
-    df['5MA'] = df['close'].rolling(window=5).mean()
-    df['13MA'] = df['close'].rolling(window=13).mean()
+# 在執行處也加入判斷
+res_df, res_div = get_data(stock_id)
 
-    # --- 3. 繪製圖表 (Plotly 互動圖) ---
-    fig = go.Figure()
+if res_df is None or res_df.empty:
+    st.error("找不到該股票代號的資料，請確認代號是否正確（例如 2330）。")
+else:
+    df = res_df.copy()
+    div = res_div.copy()
+    # ... 後續繪圖程式碼 ...
     # K線
     fig.add_trace(go.Candlestick(x=df['date'], open=df['open'], high=df['high'], 
                                  low=df['low'], close=df['close'], name='K線'))
@@ -89,3 +107,4 @@ try:
 
 except Exception as e:
     st.error(f"資料抓取失敗，請檢查股票代號是否正確。錯誤訊息: {e}")
+
