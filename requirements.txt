@@ -1,5 +1,4 @@
 streamlit
+yfinance
 pandas
-FinMind
 plotly
-tqdm
