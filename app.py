@@ -7,21 +7,22 @@ from datetime import datetime
 # --- 頁面設定 ---
 st.set_page_config(page_title="台股 AI 進階分析", layout="wide")
 
-# --- 1. 抓取數據 (極速防封版) ---
+# --- 1. 抓取數據 (兼顧穩定性與名稱抓取) ---
 @st.cache_data(ttl=3600)
-def get_stock_data_optimized(sid):
-    # 先過濾掉空格
+def get_stock_full_info(sid):
     sid = sid.strip().upper()
     for suffix in [".TW", ".TWO"]:
         target_id = f"{sid}{suffix}"
         try:
             ticker = yf.Ticker(target_id)
-            # 只抓取歷史價格，這是最穩定的部分
             df = ticker.history(period="2y")
             if not df.empty:
-                # 這裡用最安全的方式拿名稱，不抓 info 避免 RateLimit
-                # 若 Yahoo 沒給名稱，就直接用代號
-                return df, ticker.actions, target_id, sid
+                # 嘗試拿名稱，如果被限流就抓不到，則回傳代號
+                try:
+                    s_name = ticker.info.get('longName') or ticker.info.get('shortName') or sid
+                except:
+                    s_name = sid
+                return df, ticker.actions, target_id, s_name
         except:
             continue
     return pd.DataFrame(), pd.DataFrame(), None, None
@@ -32,16 +33,16 @@ stock_input = st.sidebar.text_input("股票代號 (如: 2330 或 6182)", value="
 my_cost = st.sidebar.number_input("您的買入平均價格", value=40.0, step=0.1)
 my_shares = st.sidebar.number_input("持有總股數", value=1000, step=1)
 
-df_raw, actions, final_id, stock_name = get_stock_data_optimized(stock_input)
+df_raw, actions, final_id, stock_name = get_stock_full_info(stock_input)
 
 # --- 2. 判斷與顯示 ---
 if df_raw.empty:
     st.title("📈 台股 5 / 13 / 37 MA 專業決策系統")
     st.error(f"❌ 暫時無法讀取 '{stock_input}' 的數據。")
-    st.info("💡 建議：點擊右上方『...』選擇『Reboot App』，或等待 5 分鐘後再試。這通常是數據源暫時忙碌。")
+    st.info("💡 可能是數據源暫時忙碌。請稍等 5 分鐘後點擊右下方 Manage App -> Reboot App。")
 else:
-    # 標題 (如果抓不到中文名，這裡會顯示 6182)
-    st.title(f"📈 {stock_name} ({final_id}) 5/13/37 MA 專業決策系統")
+    # 標題自動顯示名稱
+    st.title(f"📈 {stock_name} ({stock_input}) 5/13/37 MA 專業決策系統")
     
     df = df_raw.copy()
     df['5MA'] = df['Close'].rolling(window=5).mean()
@@ -58,9 +59,9 @@ else:
     c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("當前股價", f"{curr_p}", f"{change_pct:.2f}%")
     c2.metric("預估總損益", f"${(curr_p - my_cost) * my_shares:,.0f}", f"{((curr_p - my_cost) / my_cost * 100):.2f}%")
-    c3.metric("5MA", f"{m5}")
-    c4.metric("13MA", f"{m13}")
-    c5.metric("37MA", f"{m37}")
+    c3.metric("5MA (極短)", f"{m5}")
+    c4.metric("13MA (短期)", f"{m13}")
+    c5.metric("37MA (趨勢)", f"{m37}")
 
     # 圖表
     fig = go.Figure()
@@ -68,29 +69,52 @@ else:
     fig.add_trace(go.Scatter(x=df.index, y=df['5MA'], line=dict(color='#00BFFF', width=1.5), name='5MA'))
     fig.add_trace(go.Scatter(x=df.index, y=df['13MA'], line=dict(color='#FF8C00', width=1.5), name='13MA'))
     fig.add_trace(go.Scatter(x=df.index, y=df['37MA'], line=dict(color='#BA55D3', width=2), name='37MA'))
-    fig.add_hline(y=my_cost, line_dash="dash", line_color="#FF4B4B", annotation_text="成本")
-    fig.update_layout(height=500, xaxis_rangeslider_visible=False, template="plotly_dark", margin=dict(l=10, r=10, t=30, b=10))
+    fig.add_hline(y=my_cost, line_dash="dash", line_color="#FF4B4B", annotation_text="買入成本")
+    fig.update_layout(height=500, xaxis_rangeslider_visible=False, template="plotly_dark")
     st.plotly_chart(fig, use_container_width=True)
 
-    # --- 4. 強化版 AI 實戰策略詳解 ---
+    # --- 4. 恢復並強化：AI 實戰深度解析 ---
     st.subheader("🤖 AI 實戰深度解析")
-    with st.expander("🔍 當前籌碼結構與明日操作策略", expanded=True):
-        if curr_p > m5 > m13 > m37:
-            st.success("🟢 **狀態：多頭排列（強勢）**")
-            st.write(f"目前股價站穩於所有均線之上。只要收盤不破 5MA ({m5})，建議抱緊處理。")
-        elif curr_p < m37:
-            st.error("🔴 **狀態：空頭結構（轉弱）**")
-            st.write(f"股價跌破中期線 ({m37})，過去兩個月買入的人多數套牢。建議執行風險管理。")
-        elif m5 < m13:
-            st.warning("🟡 **狀態：短期修正**")
-            st.write(f"5MA 已穿過 13MA，短期買盤衰竭。關注 37MA ({m37}) 是否有支撐。")
-        else:
-            st.info("⚪ **狀態：均線糾結**")
-            st.write("目前長短均線交疊，市場無共識，建議靜待放量突破。")
+    bias_37 = ((curr_p - m37) / m37) * 100
 
-    # 歷史數據
+    with st.expander("🔍 點擊展開：當前籌碼結構與明日操作策略", expanded=True):
+        # 狀況 A：多頭排列
+        if curr_p > m5 > m13 > m37:
+            st.success("🟢 **狀態：極強勢多頭排列（飆股模式）**")
+            st.write(f"""
+            - **結構解析**：{stock_name} 目前所有均線皆呈上升斜率。這代表市場短期與中期籌碼達成高度共識，上方無解套壓力。
+            - **風險警示**：目前與 37MA 的中期乖離率為 **{bias_37:.2f}%**。若乖離超過 15-20%，需慎防獲利回吐。
+            - **明日策略**：只要收盤不破 5MA ({m5}) 則抱緊處理。回測 13MA ({m13}) 若有撐可視為二次買點。
+            """)
+        
+        # 狀況 B：短期修正
+        elif m5 < m13 and curr_p > m37:
+            st.warning("🟡 **狀態：上升趨勢中的短期整理**")
+            st.write(f"""
+            - **結構解析**：5MA 已下穿 13MA，顯示短線投機買盤正在撤出。但因股價仍在 37MA ({m37}) 之上，中期趨勢尚未崩盤。
+            - **操作建議**：**「不追高、不加碼」**。若明日跌破今日低點，建議獲利了結部分部位。
+            - **關鍵價位**：盯緊 37MA ({m37})，這是最後的防線。
+            """)
+
+        # 狀況 C：趨勢反轉
+        elif curr_p < m37:
+            st.error("🔴 **狀態：空頭轉弱結構**")
+            st.write(f"""
+            - **結構解析**：股價跌破中期生命線 ({m37})。代表過去兩個月買入的人多數處於套牢狀態。
+            - **操作建議**：**執行停損**。不要在空頭趨勢中攤平。反彈至均線若站不穩，應視為逃命波。
+            """)
+        
+        # 狀況 D：均線糾結
+        else:
+            st.info("⚪ **狀態：均線糾結 / 箱型震盪**")
+            st.write(f"""
+            - **結構解析**：長短均線交疊，市場目前沒有方向。
+            - **操作建議**：觀望為主。等待股價以帶量紅棒站上 5MA，或長黑棒跌破 37MA 來確認最終動向。
+            """)
+
+    # --- 5. 歷史數據 ---
     st.divider()
-    st.subheader("📅 歷史量價數據 (最後 5 日)")
+    st.subheader(f"📅 {stock_name} 歷史數據 (最後 5 日)")
     recent_df = df[['Close', 'Volume', '5MA', '13MA', '37MA']].tail(5).copy()
     recent_df.columns = ['收盤價', '成交量(股)', '5MA', '13MA', '37MA']
     st.table(recent_df.style.format("{:.2f}"))
