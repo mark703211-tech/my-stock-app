@@ -5,8 +5,12 @@ import plotly.graph_objects as go
 from datetime import datetime
 
 # --- 頁面設定 ---
-st.set_page_config(page_title="台股 AI 進階分析", layout="wide")
-
+st.set_page_config(
+    page_title="台股AI決策小幫手", 
+    page_icon="📈", 
+    layout="wide",
+    initial_sidebar_state="collapsed" # 手機開啟時自動收起側邊欄，讓圖表最大化
+)
 # --- 1. 抓取數據 (兼顧穩定性與名稱抓取) ---
 @st.cache_data(ttl=3600)
 def get_stock_full_info(sid):
@@ -118,3 +122,4 @@ else:
     recent_df = df[['Close', 'Volume', '5MA', '13MA', '37MA']].tail(5).copy()
     recent_df.columns = ['收盤價', '成交量(股)', '5MA', '13MA', '37MA']
     st.table(recent_df.style.format("{:.2f}"))
+
