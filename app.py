@@ -6,9 +6,9 @@ from datetime import datetime
 
 # --- 頁面設定 ---
 st.set_page_config(
-    page_title="我的持股診斷", # 桌面顯示名稱
-    page_icon="💰",           # 使用金錢袋圖標
-    layout="centered"         # 1.0 適合置中對齊，看起來比較精簡
+    page_title="我的持股診斷",
+    page_icon="🟢", # 強制改用綠色圓點，視覺對比最強
+    layout="centered"
 )
 # --- 1. 抓取數據 (兼顧穩定性與名稱抓取) ---
 @st.cache_data(ttl=3600)
@@ -121,5 +121,6 @@ else:
     recent_df = df[['Close', 'Volume', '5MA', '13MA', '37MA']].tail(5).copy()
     recent_df.columns = ['收盤價', '成交量(股)', '5MA', '13MA', '37MA']
     st.table(recent_df.style.format("{:.2f}"))
+
 
 
