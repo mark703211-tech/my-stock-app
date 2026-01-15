@@ -43,7 +43,7 @@ shares = st.sidebar.number_input("持有股數", min_value=0, step=1000)
 df, final_id = fetch_stock_data(stock_id)
 
 if df.empty:
-    st.error(f"❌ 無法取得 {stock_id} 市場資料。請檢查代號正確性或 requirements.txt 設定。")
+    st.error(f"❌ 無法取得 {stock_id} 市場資料。請檢查代號正確性。")
     st.stop()
 
 # 指標計算
@@ -53,12 +53,12 @@ df["MA37"] = df["Close"].rolling(37).mean()
 df["Vol_MA5"] = df["Volume"].rolling(5).mean()
 
 # 取得最新數值
-curr_p = df["Close"].iloc[-1]
-m5 = df["MA5"].iloc[-1]
-m13 = df["MA13"].iloc[-1]
-m37 = df["MA37"].iloc[-1]
-vol_ratio = df["Volume"].iloc[-1] / df["Vol_MA5"].iloc[-1] if df["Vol_MA5"].iloc[-1] > 0 else 1.0
-slope_37 = df["MA37"].diff().iloc[-1]
+curr_p = float(df["Close"].iloc[-1])
+m5 = float(df["MA5"].iloc[-1])
+m13 = float(df["MA13"].iloc[-1])
+m37 = float(df["MA37"].iloc[-1])
+vol_ratio = float(df["Volume"].iloc[-1] / df["Vol_MA5"].iloc[-1]) if df["Vol_MA5"].iloc[-1] > 0 else 1.0
+slope_37 = float(df["MA37"].diff().iloc[-1])
 
 # =========================
 # 5. 數據看板 (Metrics)
@@ -87,7 +87,7 @@ fig.add_trace(go.Candlestick(
     low=df["Low"], close=df["Close"], name="K線"
 ))
 
-# 修正配色：莫蘭迪深紅與深綠，降低視覺疲勞
+# 配色：莫蘭迪深紅與深綠
 fig.update_traces(
     increasing_line_color='#bc4749', increasing_fillcolor='#bc4749',
     decreasing_line_color='#6a994e', decreasing_fillcolor='#6a994e'
@@ -106,12 +106,12 @@ fig.update_layout(
 st.plotly_chart(fig, use_container_width=True)
 
 # =========================
-# 7. 垂直診斷報告 (修正顏色與語法)
+# 7. 垂直診斷報告
 # =========================
 st.markdown("---")
 st.subheader("📋 趨勢結構診斷報告")
 
-# 顏色判定：採用深色系
+# 邏輯判定
 if any(pd.isna([m5, m13, m37])):
     bg_color, title, text = "#4a4e69", "數據觀測中", "資料天數不足，暫不進行中期判讀。"
 elif curr_p > m37 and slope_37 > 0 and m5 > m13 > m37:
@@ -121,7 +121,7 @@ elif curr_p < m37:
 else:
     bg_color, title, text = "#5f4b32", "橫盤整理：方向不明", "均線交疊拉鋸，動能暫歇，靜待新訊號。"
 
-# 垂直卡片
+# 顯示卡片
 st.markdown(f"""
     <div style="background-color:{bg_color}; padding:20px; border-radius:12px; border-left: 10px solid rgba(255,255,255,0.15); margin-bottom:20px;">
         <h3 style="color:white; margin:0; font-size:20px; font-weight:bold;">{title}</h3>
@@ -140,15 +140,19 @@ with col_b:
 # 操作指引
 st.markdown("#### 🚩 實戰策略指引")
 if any(pd.isna([m5, m13, m37])):
-    st.info("新上市標的，建議優先觀察 5MA 與成交量變動。")
+    st.info("新上市標的數據不足，建議先觀察 5MA 短線動能。")
 elif curr_p > m37:
     if vol_ratio >= 1.3:
-        st.success("【確認加溫】量價齊揚，市場參與度高，建議續抱並上移停損。")
+        st.success("【確認加溫】量價齊揚，人氣匯集，建議上移止盈位續抱。")
     elif vol_ratio < 0.8:
-        st.warning("【量能不足】價格雖美但買盤觀望，需防範假突破。")
+        st.warning("【量能不足】價格雖美但買盤虛弱，需防範假突破，不建議加碼。")
     else:
-        st.success("【節奏穩健】趨勢推進中。只要生命線保持向上，維持原配置。")
+        st.success("【順勢而為】趨勢穩健推進。只要生命線斜率向上，維持配置。")
 else:
     if vol_ratio >= 1.3:
-        st.error("【警訊確認】帶量跌破。法人撤離訊號明顯，建議加強風險管理。")
-    else
+        st.error("【警訊確認】帶量破線。法人撤離跡象明顯，建議執行停損。")
+    else:
+        st.error("【陰跌風險】市場興趣缺缺，價格緩步尋底，暫不宜攤平。")
+
+st.divider()
+st.caption("🔍 註：診斷結合價格位階與量能倍率。技術指標具滯後性，請獨立判斷。")
