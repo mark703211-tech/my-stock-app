@@ -99,7 +99,10 @@ if cost_price > 0 and shares > 0:
         help="未計入股息、除權息與交易成本"
     )
 else:
-    today_vol = df["Volume"].iloc[-1]
+today_vol = df["Volume"].iloc[-1]
+if today_vol == 0:
+    c2.metric("最近成交量", "今日無成交")
+else:
     c2.metric("今日成交量", f"{today_vol:,.0f} 股")
 
 c3.metric(
@@ -183,3 +186,4 @@ with st.expander("展開判讀邏輯與建議", expanded=True):
     st.caption(
         "注意：本工具僅根據技術分析指標進行結構判讀。債券 ETF (如 00980A)、槓桿型商品之邏輯與個股不同，請綜合評估。"
     )
+
