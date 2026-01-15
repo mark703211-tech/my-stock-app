@@ -143,6 +143,70 @@ st.plotly_chart(fig, use_container_width=True)
 # 9. Structural + Volume Interpretation
 # =========================
 # =========================
+# 9. 專業結構診斷報告
+# =========================
+st.markdown("---")
+st.subheader("📋 趨勢結構診斷")
+
+# 補齊量能計算邏輯
+df["Vol_MA5"] = df["Volume"].rolling(5).mean()
+vol_ratio = df["Volume"].iloc[-1] / df["Vol_MA5"].iloc[-1] if df["Vol_MA5"].iloc[-1] > 0 else 1.0
+
+# 判定核心結論 (標題與顏色)
+if any(pd.isna([m5, m13, m37])):
+    status_title = "數據加載中"
+    status_color = "#808080" # 灰色
+    conclusion = "新掛牌標的，指標尚在暖機階段。"
+elif curr_p > m37 and m5 > m13 > m37:
+    status_title = "多頭排列：強勢格局"
+    status_color = "#FF4136" # 紅色 (多頭)
+    conclusion = "價格站穩生命線，均線發散向上，動能充足。"
+elif curr_p < m37:
+    status_title = "空頭轉弱：偏空格局"
+    status_color = "#3D9970" # 綠色 (台股空頭)
+    conclusion = "價格跌破 37MA，中期趨勢受阻，需謹慎面對。"
+else:
+    status_title = "橫盤整理：方向不明"
+    status_color = "#FFA500" # 橘色
+    conclusion = "均線糾結，短中期力量拉鋸，靜待突破訊號。"
+
+# --- 垂直報告呈現 ---
+with st.container():
+    # 1. 核心結論區 (大標題卡片)
+    st.markdown(f"""
+        <div style="background-color:{status_color}; padding:15px; border-radius:10px; text-align:center;">
+            <h2 style="color:white; margin:0;">{status_title}</h2>
+            <p style="color:white; margin:5px 0 0 0; opacity:0.9;">{conclusion}</p>
+        </div>
+    """, unsafe_allow_html=True)
+
+    # 2. 數據細節 (條列式)
+    st.markdown("#### 📊 技術數據摘要")
+    st.write(f"‧ **位置現況**：股價相較 37MA 乖離為 {((curr_p/m37)-1)*100:.2f}%")
+    st.write(f"‧ **量能狀態**：今日成交量為 5 日均量的 **{vol_ratio:.2f} 倍**")
+    
+    # 3. 戰略指引 (長條對話框)
+    st.markdown("#### 🚩 實戰操作指引")
+    
+    if any(pd.isna([m5, m13, m37])):
+        st.info("目前數據天數不足 37 天，技術指標僅供參考，應以基本面或消息面為準。")
+    elif curr_p > m37:
+        if vol_ratio >= 1.3:
+            st.success("【確認加溫】量價齊揚，市場認同度高。持股者可上移停利點續抱；空手者切忌追噴，等回測 5MA 守穩再看。")
+        elif vol_ratio < 0.8:
+            st.warning("【量能不足】價格雖美但買盤觀望。這類情況容易出現「假突破」，不建議在此處重倉參與，耐心等量滾出來。")
+        else:
+            st.success("【常態推升】趨勢穩健。只要 37MA 斜率保持向上，操作上維持既定節奏即可。")
+    else:
+        if vol_ratio >= 1.3:
+            st.error("【警訊出現】破線帶量是真跌。代表法人或大戶正在撤離，這時不要談信仰，先保護本金才是上策。")
+        else:
+            st.error("【緩跌風險】雖然沒爆量，但股價站不回生命線。這種「陰跌」最磨人，建議轉為防守模式，暫不攤平。")
+
+# --- 底部備註 ---
+st.markdown("---")
+st.caption("🔍 註：診斷邏輯結合價格位階與 5 日量能倍率。技術指標為落後指標，投資請務必獨立判斷風險。")
+# =========================
 # 9. AI 戰略對話室
 # =========================
 # =========================
@@ -200,3 +264,4 @@ with st.expander("📊 查看診斷結論與操作戰略", expanded=True):
         "如果這兩天出現「量縮不跌」，那是轉強的前兆；反之，「爆量不漲」則要提防主力出貨。"
     )
     st.caption("※ 戰略指引僅供邏輯參考，投資請務必獨立判斷。")
+
