@@ -13,7 +13,7 @@ st.set_page_config(
 )
 
 # =========================
-# 2. 數據引擎 (萬用偵測機制)
+# 2. 數據引擎
 # =========================
 @st.cache_data(ttl=3600)
 def fetch_stock_data(sid: str):
@@ -42,7 +42,7 @@ shares = st.sidebar.number_input("持有股數", min_value=0, step=1000)
 df, final_id = fetch_stock_data(stock_id)
 
 if df.empty:
-    st.error(f"❌ 無法取得 {stock_id} 市場資料。請確認代號正確並已建立 requirements.txt。")
+    st.error(f"❌ 無法取得 {stock_id} 市場資料。請確認代號正確。")
     st.stop()
 
 # 指標計算
@@ -60,7 +60,7 @@ slope_37 = df["MA37"].diff().iloc[-1]
 # 5. 數據看板
 # =========================
 st.title(f"🚀 {stock_id} 結構診斷")
-st.caption(f"資料來源：{final_id} ｜ 交易日：{df.index[-1].date()}")
+st.caption(f"最後交易日：{df.index[-1].date()}")
 
 c1, c2, c3 = st.columns(3)
 c1.metric("目前股價", f"{curr_p:.2f}")
@@ -68,29 +68,52 @@ c1.metric("目前股價", f"{curr_p:.2f}")
 if cost_price > 0 and shares > 0:
     pnl = (curr_p - cost_price) * shares
     pnl_pct = (curr_p / cost_price - 1) * 100
-    c2.metric("帳面損益", f"{pnl:,.0f}", f"{pnl_pct:.2f}%")
+    c2.metric("帳面損益", f"${pnl:,.0f}", f"{pnl_pct:.2f}%")
 else:
     c2.metric("今日成交量", f"{df['Volume'].iloc[-1]:,.0f}")
 
 c3.metric("37MA 生命線", f"{m37:.2f}" if not pd.isna(m37) else "資料不足")
 
 # =========================
-# 6. K 線圖 (配色微調)
+# 6. K 線圖 (配色優化)
 # =========================
 fig = go.Figure()
 fig.add_trace(go.Candlestick(
     x=df.index, open=df["Open"], high=df["High"], low=df["Low"], close=df["Close"], name="K線"
 ))
 
-# 採用稍淡的紅綠色，降低視覺衝擊
+# 採用更穩重的紅綠配色
 fig.update_traces(
-    increasing_line_color='#e63946', increasing_fillcolor='#e63946',
-    decreasing_line_color='#2a9d8f', decreasing_fillcolor='#2a9d8f'
+    increasing_line_color='#d62828', increasing_fillcolor='#d62828',
+    decreasing_line_color='#06d6a0', decreasing_fillcolor='#06d6a0'
 )
 
-fig.add_trace(go.Scatter(x=df.index, y=df["MA5"], name="5MA", line=dict(color='#457b9d', width=1)))
-fig.add_trace(go.Scatter(x=df.index, y=df["MA37"], name="37MA", line=dict(color='#a29bfe', width=2)))
+fig.add_trace(go.Scatter(x=df.index, y=df["MA5"], name="5MA", line=dict(color='#48cae4', width=1)))
+fig.add_trace(go.Scatter(x=df.index, y=df["MA37"], name="37MA", line=dict(color='#9d4edd', width=2)))
 
 fig.update_layout(
     height=450, template="plotly_dark", xaxis_rangeslider_visible=False,
     margin=dict(l=10, r=10, t=30, b=10),
+    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+)
+st.plotly_chart(fig, use_container_width=True)
+
+# =========================
+# 7. 垂直診斷報告 (莫蘭迪專業配色)
+# =========================
+st.markdown("---")
+st.subheader("📋 趨勢結構診斷")
+
+# 顏色判定
+if any(pd.isna([m5, m13, m37])):
+    bg_color, title, text = "#4a4e69", "數據觀測中", "資料天數尚不足以進行中期結構判讀。"
+elif curr_p > m37 and slope_37 > 0 and m5 > m13 > m37:
+    bg_color, title, text = "#2d4a3e", "多頭排列：強勢格局", "價格站穩生命線，斜率向上，多頭趨勢延伸。"
+elif curr_p < m37:
+    bg_color, title, text = "#5d2e2e", "空頭轉弱：偏空格局", "股價低於生命線，趨勢受壓，建議保守防禦。"
+else:
+    bg_color, title, text = "#5f4b32", "橫盤整理：方向不明", "均線交疊拉鋸，動能暫歇，靜待新方向訊號。"
+
+st.markdown(f"""
+    <div style="background-color:{bg_color}; padding:20px; border-radius:12px; border-left: 8px solid rgba(255,255,255,0.2);">
+        <h3 style="color:white; margin:0; font-size:20px; font-weight:bold;">{title
