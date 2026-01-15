@@ -13,7 +13,7 @@ st.set_page_config(
 )
 
 # =========================
-# 2. 數據引擎 (強化容錯機制)
+# 2. 數據引擎
 # =========================
 @st.cache_data(ttl=3600)
 def fetch_stock_data(sid: str):
@@ -43,16 +43,16 @@ shares = st.sidebar.number_input("持有股數", min_value=0, step=1000)
 df, final_id = fetch_stock_data(stock_id)
 
 if df.empty:
-    st.error(f"❌ 無法取得 {stock_id} 市場資料。請確認 GitHub 專案中已建立包含 'yfinance' 的 requirements.txt 檔案。")
+    st.error(f"❌ 無法取得 {stock_id} 市場資料。請檢查代號正確性或 requirements.txt 設定。")
     st.stop()
 
-# 核心指標計算
+# 指標計算
 df["MA5"] = df["Close"].rolling(5).mean()
 df["MA13"] = df["Close"].rolling(13).mean()
 df["MA37"] = df["Close"].rolling(37).mean()
 df["Vol_MA5"] = df["Volume"].rolling(5).mean()
 
-# 取得最新數據
+# 取得最新數值
 curr_p = df["Close"].iloc[-1]
 m5 = df["MA5"].iloc[-1]
 m13 = df["MA13"].iloc[-1]
@@ -64,7 +64,7 @@ slope_37 = df["MA37"].diff().iloc[-1]
 # 5. 數據看板 (Metrics)
 # =========================
 st.title(f"🚀 {stock_id} 結構診斷")
-st.caption(f"數據來源：{final_id} ｜ 交易日：{df.index[-1].date()}")
+st.caption(f"交易日：{df.index[-1].date()}")
 
 c1, c2, c3 = st.columns(3)
 c1.metric("目前股價", f"{curr_p:.2f}")
@@ -79,7 +79,7 @@ else:
 c3.metric("37MA 生命線", f"{m37:.2f}" if not pd.isna(m37) else "資料不足")
 
 # =========================
-# 6. K 線圖 (配色優化)
+# 6. K 線圖 (柔和配色)
 # =========================
 fig = go.Figure()
 fig.add_trace(go.Candlestick(
@@ -87,7 +87,7 @@ fig.add_trace(go.Candlestick(
     low=df["Low"], close=df["Close"], name="K線"
 ))
 
-# 採用更穩重且不刺眼的配色
+# 修正配色：莫蘭迪深紅與深綠，降低視覺疲勞
 fig.update_traces(
     increasing_line_color='#bc4749', increasing_fillcolor='#bc4749',
     decreasing_line_color='#6a994e', decreasing_fillcolor='#6a994e'
@@ -106,20 +106,49 @@ fig.update_layout(
 st.plotly_chart(fig, use_container_width=True)
 
 # =========================
-# 7. 垂直診斷報告 (莫蘭迪配色)
+# 7. 垂直診斷報告 (修正顏色與語法)
 # =========================
 st.markdown("---")
-st.subheader("📋 趨勢結構診斷")
+st.subheader("📋 趨勢結構診斷報告")
 
-# 顏色判定與結論設定
+# 顏色判定：採用深色系
 if any(pd.isna([m5, m13, m37])):
-    bg_color, title, text = "#4a4e69", "數據觀測中", "資料天數不足，暫不進行中期結構判讀。"
+    bg_color, title, text = "#4a4e69", "數據觀測中", "資料天數不足，暫不進行中期判讀。"
 elif curr_p > m37 and slope_37 > 0 and m5 > m13 > m37:
-    bg_color, title, text = "#2d4a3e", "多頭排列：強勢格局", "價格站穩生命線，斜率向上，多頭趨勢延伸。"
+    bg_color, title, text = "#2d4a3e", "多頭排列：強勢格局", "價格穩站生命線，趨勢穩定發散向上。"
 elif curr_p < m37:
-    bg_color, title, text = "#5d2e2e", "空頭轉弱：偏空格局", "股價低於生命線，趨勢受壓，建議保守防禦。"
+    bg_color, title, text = "#5d2e2e", "空頭轉弱：偏空格局", "股價低於 37MA，中期壓力尚待消化。"
 else:
-    bg_color, title, text = "#5f4b32", "橫盤整理：方向不明", "均線交疊拉鋸，動能暫歇，靜待突破訊號。"
+    bg_color, title, text = "#5f4b32", "橫盤整理：方向不明", "均線交疊拉鋸，動能暫歇，靜待新訊號。"
 
-# 診斷卡片設計
-st.markdown(
+# 垂直卡片
+st.markdown(f"""
+    <div style="background-color:{bg_color}; padding:20px; border-radius:12px; border-left: 10px solid rgba(255,255,255,0.15); margin-bottom:20px;">
+        <h3 style="color:white; margin:0; font-size:20px; font-weight:bold;">{title}</h3>
+        <p style="color:rgba(255,255,255,0.85); margin:10px 0 0 0; font-size:15px; line-height:1.5;">{text}</p>
+    </div>
+""", unsafe_allow_html=True)
+
+# 數據指標
+col_a, col_b = st.columns(2)
+with col_a:
+    bias_37 = ((curr_p / m37) - 1) * 100 if m37 > 0 else 0
+    st.write(f"‧ **37MA 乖離率**：`{bias_37:+.2f}%`")
+with col_b:
+    st.write(f"‧ **量能倍率**：`{vol_ratio:.2f} 倍`")
+
+# 操作指引
+st.markdown("#### 🚩 實戰策略指引")
+if any(pd.isna([m5, m13, m37])):
+    st.info("新上市標的，建議優先觀察 5MA 與成交量變動。")
+elif curr_p > m37:
+    if vol_ratio >= 1.3:
+        st.success("【確認加溫】量價齊揚，市場參與度高，建議續抱並上移停損。")
+    elif vol_ratio < 0.8:
+        st.warning("【量能不足】價格雖美但買盤觀望，需防範假突破。")
+    else:
+        st.success("【節奏穩健】趨勢推進中。只要生命線保持向上，維持原配置。")
+else:
+    if vol_ratio >= 1.3:
+        st.error("【警訊確認】帶量跌破。法人撤離訊號明顯，建議加強風險管理。")
+    else
