@@ -116,4 +116,5 @@ else:
 
 st.markdown(f"""
     <div style="background-color:{bg_color}; padding:20px; border-radius:12px; border-left: 8px solid rgba(255,255,255,0.2);">
-        <h3 style="color:white; margin:0; font-size:20px; font-weight:bold;">{title
+        <h3 style="color:white; margin:0; font-size:20px; font-weight:bold;">title
+
